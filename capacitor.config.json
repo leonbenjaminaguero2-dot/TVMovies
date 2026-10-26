@@ -1,0 +1,12 @@
+{
+  "appId": "com.tvmovies.admin",
+  "appName": "TVMovies Admin",
+  "webDir": "www",
+  "server": {
+    "url": "https://admintvmovies.netlify.app/",
+    "cleartext": false,
+    "allowNavigation": [
+      "admintvmovies.netlify.app"
+    ]
+  }
+}
