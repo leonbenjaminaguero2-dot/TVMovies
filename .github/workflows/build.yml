@@ -1,0 +1,70 @@
+name: TVMovies Admin - IPA
+'on':
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: macos-15
+    timeout-minutes: 45
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
+      - name: Create iOS project
+        run: npx cap add ios
+      - name: Set iOS app icon
+        run: |
+          set -euo pipefail
+          ICON_SET="ios/App/App/Assets.xcassets/AppIcon.appiconset"
+          mkdir -p "$ICON_SET"
+          cp assets/AppIcon-1024.png "$ICON_SET/AppIcon-512@2x.png"
+          cat > "$ICON_SET/Contents.json" <<'EOF'
+          {
+            "images": [{"filename":"AppIcon-512@2x.png","idiom":"universal","platform":"ios","size":"1024x1024"}],
+            "info": {"author":"xcode","version":1}
+          }
+          EOF
+      - name: Build iOS app (unsigned)
+        run: |
+          set -o pipefail
+          xcodebuild \
+            -workspace ios/App/App.xcworkspace \
+            -scheme App \
+            -configuration Release \
+            -sdk iphoneos \
+            -destination 'generic/platform=iOS' \
+            -derivedDataPath "$RUNNER_TEMP/TVMoviesAdminBuild" \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" \
+            build 2>&1 | tee "$RUNNER_TEMP/build.log"
+      - name: Package IPA
+        run: |
+          set -euo pipefail
+          APP="$RUNNER_TEMP/TVMoviesAdminBuild/Build/Products/Release-iphoneos/App.app"
+          test -d "$APP"
+          mkdir -p Payload
+          cp -R "$APP" Payload/
+          ditto -c -k --sequesterRsrc --keepParent Payload TVMoviesAdmin-unsigned.ipa
+          ls -lh TVMoviesAdmin-unsigned.ipa
+      - name: Upload IPA
+        uses: actions/upload-artifact@v4
+        with:
+          name: TVMoviesAdmin-IPA
+          path: TVMoviesAdmin-unsigned.ipa
+          if-no-files-found: error
+      - name: Upload failure log
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-log
+          path: ${{ runner.temp }}/build.log
+          if-no-files-found: ignore
